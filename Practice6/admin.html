@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Панель администратора</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .container {
+        max-width: 600px;
+        margin: auto;
+      }
+      .product {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin: 10px 0;
+      }
+      .product button {
+        margin: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div style="display: flex; flex-direction: row; justify-content: space-evenly;">
+        <div>
+            <h2>Добавить новый товар</h2>
+            <form id="productForm">
+              <input type="text" id="name" placeholder="Название" required /><br />
+              <input type="number" id="price" placeholder="Цена" required /><br />
+              <textarea id="description" placeholder="Описание"></textarea><br />
+              <input type="text" id="categories" placeholder="Категории (через запятую)" /><br />
+              <button type="submit">Добавить</button>
+            </form>
+        </div>
+        
+        <div>
+            <h2>Обновить товар</h2>
+            <form id="product2Form">
+                <input type="text" id="id2" placeholder="id" required /><br />
+                <input type="text" id="name2" placeholder="Название" required /><br />
+                <input type="number" id="price2" placeholder="Цена" required /><br />
+                <textarea id="description2" placeholder="Описание"></textarea><br />
+                <input type="text" id="categories2" placeholder="Категории (через запятую)" /><br />
+                <button type="submit">Обновить</button>
+            </form>
+        </div>
+    </div>    
+    <h2>Список товаров</h2>
+    <div id="productList"></div>
+
+    <script>
+      const API_URL = "http://localhost:3000/products";
+      
+      function fetchProducts() {
+        fetch(API_URL)
+          .then(response => response.json())
+          .then(products => {
+            const productList = document.getElementById("productList");
+            productList.innerHTML = "";
+            products.forEach(product => {
+              const productDiv = document.createElement("div");
+              productDiv.classList.add("product");
+              productDiv.innerHTML = `
+                <h3>${product.name}</h3> <p>${product.id}</p>
+                <p>Цена: ${product.price} руб.</p>
+                <p>Описание: ${product.description || "Нет описания"}</p>
+                <p>Категории: ${product.categories ? product.categories.join(", ") : "Не указаны"}</p>
+                <button onclick="editProduct(${product.id}, '${product.name}', ${product.price}, '${product.description}', '${product.categories}')">Редактировать</button>
+                <button onclick="deleteProduct(${product.id})">Удалить</button>
+              `;
+              productList.appendChild(productDiv);
+            });
+          });
+      }
+
+      function deleteProduct(id) {
+        if (confirm("Вы уверены, что хотите удалить этот товар?")) {
+          fetch(`${API_URL}/${id}`, { method: "DELETE" })
+            .then(() => fetchProducts())
+            .catch(error => console.error("Ошибка удаления:", error));
+        }
+      }
+
+      function editProduct(id, name, price, description, categories) {
+        document.getElementById("id2").value = id;
+        document.getElementById("name2").value = name;
+        document.getElementById("price2").value = price;
+        document.getElementById("description2").value = description;
+        document.getElementById("categories2").value = categories;
+
+        document.getElementById("product2Form").onsubmit = function (e) {
+          e.preventDefault();
+
+          const updatedProduct = {
+            id: document.getElementById("id2").value,
+            name: document.getElementById("name2").value,
+            price: document.getElementById("price2").value,
+            description: document.getElementById("description2").value,
+            categories: document.getElementById("categories2").value.split(",").map(cat => cat.trim())
+          };
+          console.log(`${API_URL}/${id}`);
+          fetch(`${API_URL}/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedProduct)
+          })
+            .then(() => {
+              alert("Товар обновлен!");
+              document.getElementById("productForm").reset();
+              fetchProducts();
+              document.getElementById("productForm").onsubmit = addProduct;
+            })
+            .catch(error => console.error("Ошибка при обновлении товара:", error));
+        };
+      }
+
+      function addProduct(e) {
+        e.preventDefault();
+        const newProduct = {
+          name: document.getElementById("name").value,
+          price: document.getElementById("price").value,
+          description: document.getElementById("description").value,
+          categories: document.getElementById("categories").value.split(",").map(cat => cat.trim())
+        };
+        fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newProduct)
+        })
+          .then(() => {
+            alert("Товар добавлен!");
+            document.getElementById("productForm").reset();
+            fetchProducts();
+          })
+          .catch(error => console.error("Ошибка при добавлении товара:", error));
+      }
+
+      document.getElementById("productForm").addEventListener("submit", addProduct);
+      fetchProducts();
+    </script>
+  </body>
+</html>

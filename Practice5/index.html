@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <title>Лучшие товары месяца</title>
+    <link href="https://fonts.googleapis.com/css?family=Faster+One" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+  </head>
+
+  <body>
+      <header>
+      </header>
+
+      <section>
+      </section>
+
+      <script>
+        var requestURL = "http://localhost:3000/products";
+        var request = new XMLHttpRequest(); 
+
+        request.open('GET', requestURL, true); 
+        request.responseType = 'json';
+        request.send();
+
+        request.onload = function() {
+          if (request.status >= 200 && request.status < 300) { 
+            var products = request.response;
+            showProducts(products);
+          } else {
+            console.error("Ошибка загрузки данных:", request.statusText);
+          }
+        };
+
+        function showProducts(products) {
+          var section = document.querySelector("section");
+          section.innerHTML = "";
+
+          products.forEach(product => {
+            var myArticle = document.createElement("article");
+            var myH2 = document.createElement("h2");
+            var myPara1 = document.createElement("p");
+            var myPara2 = document.createElement("p");
+            var myPara3 = document.createElement("p");
+
+            myH2.textContent = product.name;
+            myPara1.textContent = "Цена: " + product.price + " руб.";
+            myPara2.textContent = "Описание: " + product.description;
+            myPara3.textContent = "Категория: " + product.categories;
+
+            myArticle.appendChild(myH2);
+            myArticle.appendChild(myPara1);
+            myArticle.appendChild(myPara2);
+            myArticle.appendChild(myPara3);
+            section.appendChild(myArticle);
+          });
+        }
+      </script>
+  </body>
+</html>

@@ -1,0 +1,52 @@
+html {
+    font-family: 'helvetica neue', helvetica, arial, sans-serif;
+  }
+  
+  body {
+    width: 1200px;
+    margin: 3% auto;
+  }
+  
+  h1, h2 {
+    font-family: 'Faster One', cursive;
+  }
+  
+  /* header styles */
+  
+  h1 {
+    font-size: 4rem;
+    text-align: center;
+  }
+  
+  header p {
+    font-size: 1.3rem;
+    font-weight: bold;
+    text-align: center;
+  }
+  
+  /* section styles */
+  
+  section{
+    width: 100%;
+  }
+  
+  section article {
+    width: 30%;
+    float: left;
+    margin-right: 3%;
+    text-align: center;
+    border-style: dashed;
+  }
+  
+  section p {
+    margin: 10px 0 10px;
+  }
+  
+  section ul {
+    margin-top: 0;
+  }
+  
+  h2 {
+    font-size: 2rem;
+    margin-bottom: 15px;
+  }

@@ -1,36 +1,84 @@
+const { ApolloServer, gql } = require('apollo-server-express'); // Добавляем GraphQL
 const express = require("express");
 const bodyParser = require("body-parser");
 const fs = require('fs');
-
+const cors = require('cors');
 const app = express();
+const path = require('path');
+const WebSocket = require('ws'); // Подключаем WebSocket
 const PORT = 3000;
+const productsPath = path.join(__dirname, 'products.json');
+let products = [];
+
+function loadProducts() {
+  try {
+      const data = fs.readFileSync(productsPath, 'utf-8');
+      products = JSON.parse(data);
+      return products;
+  } catch (err) {
+      console.error('Ошибка загрузки товаров:', err);
+      return [];
+  }
+}
+
+function saveProducts() {
+  try{
+    fs.writeFileSync(productsPath, JSON.stringify(products, null, 2));
+  } catch (error){
+    console.error('Ошибка сохранения файла:', error);
+  }
+}
+
+app.use(cors({
+  origin: '*', // Разрешаем запросы с любых источников (можно заменить на конкретные)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+
+// Явные маршруты для HTML-страниц
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../Practice5/index.html'));
+});
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '../Practice6/admin.html'));
+});
+
+// Определение схемы GraphQL
+const typeDefs = gql`
+  type Product {
+    id: ID!
+    name: String!
+    price: Float!
+    description: String
+    categories: [String]
+  }
+
+  type Query {
+    products: [Product]
+    product(id: ID!): Product
+  }
+`;
+
+const resolvers = {
+  Query: {
+      products: () => loadProducts(), 
+      product: (_, { id }) => loadProducts().find(p => p.id == id),
+  }
+};
 
 const swaggerJsDoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
-// Swagger документация
-const swaggerOptions = {
-  swaggerDefinition: {
-    openapi: "3.0.0",
-    info: {
-      title: "Task Management API",
-      version: "1.0.0",
-      description: "API для управления задачами",
-    },
-    servers: [
-      {
-        url: "http://localhost:3000",
-      },
-    ],
-  },
-  apis: ["openapi.yaml"], // укажите путь к файлам с аннотациями
-};
-
-const swaggerDocs = swaggerJsDoc(swaggerOptions);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 
 // Middleware для парсинга JSON
 app.use(bodyParser.json());
+
+// Создаём GraphQL-сервер
+const server = new ApolloServer({ typeDefs, resolvers });
+
+
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*"); // Разрешает все домены
@@ -42,14 +90,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Массив для хранения товаров
-let products = []
-try {
-  const data = fs.readFileSync('products.json', 'utf-8');
-  products = JSON.parse(data);
-} catch (err) {
-  console.error('Ошибка при чтении файла products.json:', err);
-}
+
 
 // Получить список товаров
 app.get("/products", (req, res) => {
@@ -93,17 +134,6 @@ app.put("/products/:id", (req, res) => {
   }
 });
 
-//app.delete('/products/:id', (req, res) => {
-//  const productId = parseInt(req.params.id);
-//  const initialLength = products.length;
-//  products = products.filter(p => p.id != productId);
-//  if (products.length === initialLength) {
-//      return res.status(404).json({ message: 'Product not found' });
-//  }
-//  res.status(204).send();
-//});
-
-
 app.delete('/products/:id', (req, res) => {
   const productId = parseInt(req.params.id);
   console.log('Deleting product with ID:', {productId}); // Логируем ID
@@ -123,7 +153,57 @@ app.delete('/products/:id', (req, res) => {
 
 
 
-// Запуск сервера
-app.listen(PORT, () => {
-  console.log("Server is running on http://localhost:", PORT);
-});
+async function startServer() {
+  await server.start();
+  server.applyMiddleware({ app });
+
+  // Swagger документация
+  const swaggerOptions = {
+    swaggerDefinition: {
+      openapi: "3.0.0",
+      info: {
+        title: "Task Management API",
+        version: "1.0.0",
+        description: "API для управления задачами",
+      },
+      servers: [
+        {
+          url: "http://localhost:3000",
+        },
+      ],
+    },
+    apis: ["openapi.yaml"], // укажите путь к файлам с аннотациями
+  };
+
+  const swaggerDocs = swaggerJsDoc(swaggerOptions);
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
+  app.listen(PORT, () => {
+
+    console.log(`GraphQL API запущен на http://localhost:${PORT}/graphql`);
+    console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
+
+  });
+  const wss = new WebSocket.Server({ port: 8080 }); // WebSocket-сервер на порту 8080
+
+    wss.on('connection', (ws) => {
+      console.log('Новое подключение к WebSocket серверу');
+      ws.on('message', (message) => {
+        console.log('Сообщение получено:', message.toString());
+    
+            // Рассылаем сообщение всем клиентам (покупатель ↔ администратор)
+        wss.clients.forEach(client => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ text: message.toString() }));
+          }
+        });
+      });
+      ws.on('close', () => {
+        console.log('Клиент отключился');
+      });
+    }); 
+    console.log('WebSocket сервер запущен на ws://localhost:8080');
+}
+
+loadProducts();
+startServer(); // Запуск сервера

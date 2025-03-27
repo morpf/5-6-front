@@ -1,49 +1,12 @@
-const { ApolloServer, gql } = require('apollo-server-express'); // Добавляем GraphQL
-const express = require("express");
-const bodyParser = require("body-parser");
-const fs = require('fs');
-const cors = require('cors');
-const app = express();
-const path = require('path');
 const WebSocket = require('ws'); // Подключаем WebSocket
+const { ApolloServer, gql } = require('apollo-server-express');
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const swaggerJsDoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+const cors = require('cors');
 const PORT = 3000;
-const productsPath = path.join(__dirname, 'products.json');
-let products = [];
-
-function loadProducts() {
-  try {
-      const data = fs.readFileSync(productsPath, 'utf-8');
-      products = JSON.parse(data);
-      return products;
-  } catch (err) {
-      console.error('Ошибка загрузки товаров:', err);
-      return [];
-  }
-}
-
-function saveProducts() {
-  try{
-    fs.writeFileSync(productsPath, JSON.stringify(products, null, 2));
-  } catch (error){
-    console.error('Ошибка сохранения файла:', error);
-  }
-}
-
-app.use(cors({
-  origin: '*', // Разрешаем запросы с любых источников (можно заменить на конкретные)
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-
-// Явные маршруты для HTML-страниц
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../Practice5/index.html'));
-});
-
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, '../Practice6/admin.html'));
-});
 
 // Определение схемы GraphQL
 const typeDefs = gql`
@@ -61,149 +24,160 @@ const typeDefs = gql`
   }
 `;
 
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Чтение данных из products.json
+let products = [];
+function loadProducts() {
+    try {
+        const filePath = path.join(__dirname, 'products.json');
+        const data = fs.readFileSync(filePath, 'utf-8');
+        const jsonData = JSON.parse(data);
+        return jsonData.products; // Возвращаем только массив products
+    } catch (err) {
+        console.error('Ошибка при чтении файла products.json:', err);
+        return []; // Возвращаем пустой массив в случае ошибки
+    }
+}
+
+function saveProducts() {
+    try {
+        const filePath = path.join(__dirname, 'products.json');
+        const dataToSave = { products }; // Сохраняем объект с ключом "products"
+        fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
+    } catch (err) {
+        console.error('Ошибка при записи файла products.json:', err);
+    }
+}
+
 const resolvers = {
-  Query: {
-      products: () => loadProducts(), 
-      product: (_, { id }) => loadProducts().find(p => p.id == id),
-  }
+    Query: {
+        products: () => loadProducts(),
+        product: (_, { id }) => loadProducts().find(p => p.id == id),
+    }
 };
 
-const swaggerJsDoc = require("swagger-jsdoc");
-const swaggerUi = require("swagger-ui-express");
-
-
-// Middleware для парсинга JSON
-app.use(bodyParser.json());
 
 // Создаём GraphQL-сервер
 const server = new ApolloServer({ typeDefs, resolvers });
 
-
-
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*"); // Разрешает все домены
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  );
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  next();
-});
-
-
-
-// Получить список товаров
-app.get("/products", (req, res) => {
-  res.json(products);
-});
-
-// Создать новую задачу
-app.post("/products", (req, res) => {
-  const newProduct = {
-    id: products.length + 1,
-    name: req.body.name,
-    price: req.body.price,
-    category: req.body.category,
-  };
-  products.push(newProduct);
-  res.status(201).json(newProduct);
-});
-
-// Получить задачу по ID
-app.get("/products/:id", (req, res) => {
-  const productId = parseInt(req.params.id);
-  const product = products.find((p) => p.id == productId);
-  if (product) {
-    res.json(product);
-  } else {
-    res.status(404).json({ message: "Product not found" });
-  }
-});
-
-app.put("/products/:id", (req, res) => {
-  const productId = parseInt(req.params.id);
-  const product = products.find((p) => p.id === productId);
-  if (product) {
-    const { name, price, category } = req.body;
-    product.name = name !== undefined ? name : product.name;
-    product.price = price !== undefined ? price : product.price;
-    product.category = category !== undefined ? category : product.category;
-    res.json(product);
-  } else {
-    res.status(404).json({ message: "Product not found" });
-  }
-});
-
-app.delete('/products/:id', (req, res) => {
-  const productId = parseInt(req.params.id);
-  console.log('Deleting product with ID:', {productId}); // Логируем ID
-  console.log('Current products:', {products}); // Логируем текущий массив продуктов
-
-  const initialLength = products.length;
-  products = products.filter(p => p.id != productId);
-  
-  if (products.length === initialLength) {
-      console.log('Product with ID not found', {productId}); // Логируем, если продукт не найден
-      return res.status(404).json({ message: 'Product not found' });
-  }
-  
-  console.log('Product with ID, deleted',{productId}); // Логируем успешное удаление
-  res.status(204).send();
-});
-
-
-
 async function startServer() {
-  await server.start();
-  server.applyMiddleware({ app });
+    await server.start();
+    server.applyMiddleware({ app });
 
-  // Swagger документация
-  const swaggerOptions = {
+    // Swagger документация
+const swaggerOptions = {
     swaggerDefinition: {
-      openapi: "3.0.0",
-      info: {
-        title: "Task Management API",
-        version: "1.0.0",
-        description: "API для управления задачами",
-      },
-      servers: [
-        {
-          url: "http://localhost:3000",
+        openapi: '3.0.0',
+        info: {
+            title: 'Product Management API',
+            version: '1.0.0',
+            description: 'API для управления задачами',
         },
-      ],
+        servers: [
+            {
+                url: 'http://localhost:3000',
+            },
+        ],
     },
-    apis: ["openapi.yaml"], // укажите путь к файлам с аннотациями
-  };
+    apis: ['openapi.yaml'], // укажите путь к файлам с аннотациями
+};
+    const swaggerDocs = swaggerJsDoc(swaggerOptions);
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+    app.listen(PORT, () => {
+        console.log(`GraphQL API запущен на http://localhost:${PORT}/graphql`);
+        console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
+    });
 
-  const swaggerDocs = swaggerJsDoc(swaggerOptions);
-  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-
-  app.listen(PORT, () => {
-
-    console.log(`GraphQL API запущен на http://localhost:${PORT}/graphql`);
-    console.log(`Swagger API Docs: http://localhost:${PORT}/api-docs`);
-
-  });
-  const wss = new WebSocket.Server({ port: 8080 }); // WebSocket-сервер на порту 8080
+    const wss = new WebSocket.Server({ port: 8080 }); // WebSocket-сервер на порту 8080
 
     wss.on('connection', (ws) => {
-      console.log('Новое подключение к WebSocket серверу');
-      ws.on('message', (message) => {
-        console.log('Сообщение получено:', message.toString());
-    
-            // Рассылаем сообщение всем клиентам (покупатель ↔ администратор)
-        wss.clients.forEach(client => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ text: message.toString() }));
-          }
+        console.log('Новое подключение к WebSocket серверу');
+
+        ws.on('message', (message) => {
+            console.log('📩 Сообщение получено:', message.toString());
+        
+            // Отправляем сообщение всем клиентам в формате JSON
+            wss.clients.forEach(client => {
+                if (client !== ws && client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({ text: message.toString() })); // Отправляем JSON
+                }
+            });
         });
-      });
-      ws.on('close', () => {
-        console.log('Клиент отключился');
-      });
-    }); 
+        
+
+        ws.on('close', () => {
+            console.log('Клиент отключился');
+        });
+    });
+
     console.log('WebSocket сервер запущен на ws://localhost:8080');
+
 }
 
-loadProducts();
+// Получить список товаров
+app.get('/products', (req, res) => {
+    res.json(loadProducts());
+});
+
+// Создать новый товар
+app.post('/products', (req, res) => {
+    const { name, price, description, categories } = req.body;
+    if (!name || !price || !description || !categories) {
+        return res.status(400).json({ message: 'Name, price, description, and categories are required' });
+    }
+    const newProduct = {
+        id: Date.now(), // Более надежный способ генерации ID
+        name,
+        price,
+        description,
+        categories
+    };
+    products.push(newProduct);
+    saveProducts();
+    res.status(201).json(newProduct);
+});
+
+// Получить товар по ID
+app.get('/products/:id', (req, res) => {
+    const productId = parseInt(req.params.id);
+    const product = loadProducts().find(p => p.id === productId);
+    if (product) {
+        res.json(product);
+    } else {
+        res.status(404).json({ message: 'Product not found' });
+    }
+});
+
+// Обновить товар по ID
+app.put('/products/:id', (req, res) => {
+    const productId = parseInt(req.params.id);
+    const product = loadProducts().find(p => p.id === productId);
+    if (product) {
+        const { name, price, description, categories } = req.body;
+        product.name = name !== undefined ? name : product.name;
+        product.price = price !== undefined ? price : product.price;
+        product.description = description !== undefined ? description : product.description;
+        product.categories = categories !== undefined ? categories : product.categories;
+        saveProducts();
+        res.json(product);
+    } else {
+        res.status(404).json({ message: 'Product not found' });
+    }
+});
+
+// Удалить товар по ID
+app.delete('/products/:id', (req, res) => {
+    const productId = parseInt(req.params.id);
+    const initialLength = products.length;
+    products = products.filter(p => p.id !== productId);
+    if (products.length === initialLength) {
+        return res.status(404).json({ message: 'Product not found' });
+    }
+    saveProducts();
+    res.status(204).send();
+});
+
 startServer(); // Запуск сервера

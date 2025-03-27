@@ -11,13 +11,24 @@
       <header>
       </header>
 
+      <section id="filters">
+        <!-- Фильтр по категориям -->
+        <label for="categoryFilter">Фильтр по категории:</label>
+        <select id="categoryFilter">
+          <option value="Все">Все</option>
+          <option value="Овощи">Овощи</option>
+          <option value="Полуфабрикаты">Полуфабрикаты</option>
+          <option value="Кисломолочное">Кисломолочное</option>
+        </select>
+      </section>
+      
       <section>
         <div id="productsContainer"></div>
       </section>
 
       <section id="chat">
         <h2>Чат поддержки</h2>
-        <div id="chatContainer"></div>
+        <div id="chatMessages" class="chat-messages"></div>
         <input type="text" id="messageInput" placeholder="Введите сообщение...">
         <button onclick="sendMessage()">Отправить</button>
     </section>
@@ -31,7 +42,16 @@
             console.log('Соединение с чатом установлено');
         };
 
+        socket.onclose = (event) => {
+            console.log('WebSocket закрыт:', event);
+        };
+
+        socket.onerror = (error) => {
+            console.error('Ошибка WebSocket:', error);
+        };
+
         socket.onmessage = (event) => {
+            console.log('Получено сообщение:', event.data);
             try {
                 const message = JSON.parse(event.data);
                 
@@ -40,7 +60,7 @@
                     throw new Error('Некорректное сообщение');
                 }
 
-                const container = document.getElementById('chat');
+                const container = document.getElementById('chatMessages');
                 container.innerHTML += `
                     <div class="message">
                         <strong>${message.user}:</strong> ${message.text}
@@ -49,8 +69,7 @@
                 container.scrollTop = container.scrollHeight;
 
             } catch (error) {
-                console.error('Ошибка:', error);
-                showError('Не удалось прочитать сообщение');
+                console.error('Ошибка: не удалось прочитать сообщение', error);
             }
         };
 
@@ -68,7 +87,6 @@
                 socket.send(JSON.stringify({
                     user: 'Покупатель', // Важное отличие от админа!
                     text: text,
-                    timestamp: new Date().toISOString()
                 }));
                 input.value = '';
             } catch (error) {
@@ -81,6 +99,7 @@
                 products {
                     name
                     price
+                    description
                     categories
                 }
             }`;
@@ -91,19 +110,18 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query })
                 });
+                const result = await response.json();
 
-                const { data, errors } = await response.json();
-                
-                if (errors) throw errors[0];
-                
-                if (data.products.length === 0) {
-                    showEmptyState();
-                    return;
-                }
+                const products = result.data.products;
+                // Фильтрация товаров по выбранной категории
+                const categoryFilter = document.getElementById('categoryFilter');
+                const selectedCategory = categoryFilter.value;
 
-                showProducts(data.products);
+                const filteredProducts = selectedCategory === "Все" ? products : products.filter(product => product.categories.includes(selectedCategory));
+
+                showProducts(filteredProducts); // Отображаем отфильтрованные товары
             } catch (error) {
-                console.error('Ошибка:', error);
+                console.error('Не удалось загрузить каталог, ошибка:', error);
                 showError('Не удалось загрузить каталог');
             }
         }
@@ -131,8 +149,19 @@
                 </div>
             `;
         }
+
+        setInterval(async () => {
+            await loadProducts();
+        }, 5000); // Обновление каждые 5 секунд
+
+        // Обработчик изменения фильтра
+        document.getElementById('categoryFilter').addEventListener('change', () => {
+            loadProducts(); // Перезагружаем товары при изменении фильтра
+        });
         
         loadProducts();
       </script>
+      <div id="root"></div>
+      <script type="module" src="/src/index.jsx"></script>
   </body>
 </html>

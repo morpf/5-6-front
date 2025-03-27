@@ -1,52 +1,85 @@
-html {
-    font-family: 'helvetica neue', helvetica, arial, sans-serif;
-  }
-  
-  body {
-    width: 1200px;
-    margin: 3% auto;
-  }
-  
-  h1, h2 {
-    font-family: 'Faster One', cursive;
-  }
-  
-  /* header styles */
-  
-  h1 {
-    font-size: 4rem;
-    text-align: center;
-  }
-  
-  header p {
-    font-size: 1.3rem;
-    font-weight: bold;
-    text-align: center;
-  }
-  
-  /* section styles */
-  
-  section{
-    width: 100%;
-  }
-  
-  section article {
-    width: 30%;
-    float: left;
-    margin-right: 3%;
-    text-align: center;
-    border-style: dashed;
-  }
-  
-  section p {
-    margin: 10px 0 10px;
-  }
-  
-  section ul {
-    margin-top: 0;
-  }
-  
-  h2 {
-    font-size: 2rem;
-    margin-bottom: 15px;
-  }
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f4f4;
+}
+
+header {
+  background-color: #31c047;
+  padding: 20px;
+  text-align: center;
+  color: white;
+  font-size: 24px;
+  font-family: 'Faster One', cursive;
+}
+
+#productsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 20px;
+}
+
+.product {
+  background: white;
+  margin: 10px;
+  padding: 15px;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+#chat {
+  width: 100%;
+  max-width: 500px;
+  margin: 20px auto;
+  padding: 15px;
+  background: white;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.chat-messages {
+  height: 200px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #fafafa;
+}
+
+.message {
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+input[type="text"] {
+  width: calc(100% - 90px);
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  margin-right: 5px;
+}
+
+button {
+  padding: 10px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+article{
+  margin-left: 60px;
+  text-align: center;
+}
+
+#filters{
+  margin: 2% 0 0 40%;
+}

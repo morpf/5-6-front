@@ -3,11 +3,11 @@ import { createSlice } from "@reduxjs/toolkit";
 const filterSlice = createSlice({
   name: "filter",
   initialState: {
-    categories: "Все", // Начальная категория
+    category: "Все", // Начальная категория
   },
   reducers: {
     setcategories: (state, action) => {
-      state.categories = action.payload; // Меняем категорию
+      state.category = action.payload; // Меняем категорию
     },
   },
 });

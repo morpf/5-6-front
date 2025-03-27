@@ -45,6 +45,7 @@ function App() {
         setNewProductCategories("");
       };
 
+
     // Функция удаления товара
   const handleDeleteProduct = (id) => {
     dispatch(deleteProduct(id));
@@ -73,7 +74,7 @@ function App() {
         <h1>Список товаров</h1>
         
         {/* Фильтр категорий */}
-        <select value={categories} onChange={(e) => dispatch(setcategories(e.target.value))}>
+        <select value={category} onChange={(e) => dispatch(setcategories(e.target.value))}>
             <option value="Все">Все</option>
             <option value="Овощи">Овощи</option>
             <option value="Полуфабрикаты">Полуфабрикаты</option>
@@ -102,13 +103,27 @@ function App() {
         </div>
         )}
         {/* Форма для добавления товара */}
+        <div>
         <input
-        type="text"
-        value={newProductName}
-        onChange={(e) => setNewProductName(e.target.value)}
-        placeholder="Введите название товара"
+          type="text"
+          value={newProductName}
+          onChange={(e) => setNewProductName(e.target.value)}
+          placeholder="Название товара"
+        />
+        <input
+          type="text"
+          value={newProductPrice}
+          onChange={(e) => setNewProductPrice(e.target.value)}
+          placeholder="Цена товара"
+        />
+        <input
+          type="text"
+          value={newProductCategories}
+          onChange={(e) => setNewProductCategories(e.target.value)}
+          placeholder="Категории (через запятую)"
         />
         <button onClick={handleAddProduct}>Добавить</button>
+      </div>
         {/* Статусы загрузки */}
         {status === "loading" && <p>Загрузка товаров...</p>}
         {status === "failed" && <p>Ошибка: {error}</p>}

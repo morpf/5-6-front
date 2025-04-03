@@ -1,145 +1,77 @@
-import React, { useEffect, useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
-import { fetchProducts, addProduct, deleteProduct, updateProduct } from "./features/productsSlice";
-import { setcategories } from "./features/filterSlice"; // Импортируем фильтр
+import React, { useState } from 'react';
+import AuthForm from './components/AuthForm';
+import axios from 'axios';
 
-function App() {
-  const dispatch = useDispatch();
-  const { items: products, status, error } = useSelector((state) => state.products);
-  const category = useSelector((state) => state.filter.category); // Берем текущую категорию из Redux
-  const [newProductName, setNewProductName] = useState(""); // Поле для названия
-  const [newProductPrice, setNewProductPrice] = useState(""); // Поле для цены
-  const [newProductCategories, setNewProductCategories] = useState(""); // Поле для категорий
-  const [editProduct, setEditProduct] = useState(null);
-  
-  useEffect(() => {
-    dispatch(fetchProducts()); // Загружаем товары при запуске
-  }, [dispatch]);
+const App = () => {
+  const [token, setToken] = useState(null); // Храним токен здесь
+  const [protectedData, setProtectedData] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Состояние для загрузки
 
-    // Функция добавления товара
-    const handleAddProduct = () => {
-        if (!newProductName.trim() || !newProductPrice.trim() || !newProductCategories.trim()) {
-          alert("Пожалуйста, заполните все поля");
-          return;
+  const getProtected = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get('http://localhost:3000/protected', {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-    
-        // Проверяем, что цена — это число
-        if (isNaN(newProductPrice)) {
-          alert("Цена должна быть числом");
-          return;
-        }
-    
-        // Разделяем категории по запятой и убираем лишние пробелы
-        const categories = newProductCategories.split(",").map((cat) => cat.trim());
-    
-        const newProduct = {
-          id: Date.now().toString(),
-          name: newProductName,
-          price: Number(newProductPrice),
-          categories, // Массив категорий
-        };
-    
-        dispatch(addProduct(newProduct));
-        setNewProductName(""); // Очищаем поля
-        setNewProductPrice("");
-        setNewProductCategories("");
-      };
-
-
-    // Функция удаления товара
-  const handleDeleteProduct = (id) => {
-    dispatch(deleteProduct(id));
-  };
-
-  // Функция начала редактирования
-  const handleEditClick = (product) => {
-    setEditProduct(product);
-  };
-
-  // Функция сохранения изменений
-  const handleSaveEdit = () => {
-    if (editProduct) {
-      dispatch(updateProduct(editProduct));
-      setEditProduct(null);
+      });
+      setProtectedData(JSON.stringify(response.data, null, 2));
+    } catch (error) {
+      setProtectedData(error.response?.data?.message || 'Ошибка при получении данных');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Фильтрация товаров по категории
-  const filteredProducts =
-    category === "Все"
-      ? products
-      : products.filter((product) => product.categories.includes(category));
-    return (
-        <div>
-        <h1>Список товаров</h1>
-        
-        {/* Фильтр категорий */}
-        <select value={category} onChange={(e) => dispatch(setcategories(e.target.value))}>
-            <option value="Все">Все</option>
-            <option value="Овощи">Овощи</option>
-            <option value="Полуфабрикаты">Полуфабрикаты</option>
-            <option value="Кисломолочное">Кисломолочное</option>
-        </select>
+  return (
+    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+      <h1 style={{ textAlign: 'center' }}>JWT Аутентификация</h1>
+      
+      <AuthForm setToken={setToken} />
+      
+      {token && (
+        <div style={{ marginTop: '2rem' }}>
+          <h3>Токен:</h3>
+          <code style={{ 
+            display: 'block', 
+            wordBreak: 'break-all', 
+            padding: '1rem', 
+            background: '#f0f0f0',
+            marginBottom: '1rem'
+          }}>
+            {token}
+          </code>
+          
+          <button 
+            onClick={getProtected}
+            disabled={isLoading}
+            style={{
+              padding: '0.5rem 1rem',
+              background: isLoading ? '#ccc' : '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            {isLoading ? 'Загрузка...' : 'Получить защищённые данные'}
+          </button>
+          
+          {protectedData && (
+            <pre style={{ 
+              background: '#f4f4f4', 
+              padding: '1rem',
+              borderRadius: '4px',
+              marginTop: '1rem',
+              overflowX: 'auto'
+            }}>
+              {protectedData}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
-        {/* Форма редактирования товара */}
-        {editProduct && (
-            <div>
-            <h3>Редактирование товара</h3>
-            <input
-            type="text"
-            value={editProduct.name}
-            onChange={(e) => setEditProduct({ ...editProduct,
-            name: e.target.value })}
-        />
-        <input
-        type="number"
-        value={editProduct.price}
-        onChange={(e) => setEditProduct({ ...editProduct,
-        price: Number(e.target.value) })}
-        />
-        <button onClick={handleSaveEdit}>Сохранить</button>
-        <button onClick={() =>
-        setEditProduct(null)}>Отмена</button>
-        </div>
-        )}
-        {/* Форма для добавления товара */}
-        <div>
-        <input
-          type="text"
-          value={newProductName}
-          onChange={(e) => setNewProductName(e.target.value)}
-          placeholder="Название товара"
-        />
-        <input
-          type="text"
-          value={newProductPrice}
-          onChange={(e) => setNewProductPrice(e.target.value)}
-          placeholder="Цена товара"
-        />
-        <input
-          type="text"
-          value={newProductCategories}
-          onChange={(e) => setNewProductCategories(e.target.value)}
-          placeholder="Категории (через запятую)"
-        />
-        <button onClick={handleAddProduct}>Добавить</button>
-      </div>
-        {/* Статусы загрузки */}
-        {status === "loading" && <p>Загрузка товаров...</p>}
-        {status === "failed" && <p>Ошибка: {error}</p>}
-        {/* Список товаров */}
-        <ul>
-        {filteredProducts.map( (product) => (
-        <li key={product.id}>
-        {product.name} - {product.price} ₽
-        <button onClick={() =>
-        handleDeleteProduct(product.id)}>Удалить</button>
-        <button onClick={() =>
-        handleEditClick(product)}>Редактировать</button>
-        </li>
-        ))}
-        </ul>
-        </div>
-    );
-}
 export default App;

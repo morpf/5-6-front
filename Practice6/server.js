@@ -2,11 +2,15 @@ const WebSocket = require('ws'); // Подключаем WebSocket
 const { ApolloServer, gql } = require('apollo-server-express');
 const express = require('express');
 const fs = require('fs');
+require('dotenv').config({ path: 'test.env' }); // Подключаем dotenv
+const jwt = require('jsonwebtoken'); // Подключаем JWT
 const path = require('path');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const cors = require('cors');
 const PORT = 3000;
+let users = []; // Простая "база данных" в оперативной памяти
+
 
 // Определение схемы GraphQL
 const typeDefs = gql`
@@ -27,6 +31,39 @@ const typeDefs = gql`
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const SECRET_KEY = process.env.JWT_SECRET;
+
+// Middleware для проверки JWT токена
+function authenticateToken(req, res, next) {
+    // Получаем заголовок Authorization
+    const authHeader = req.headers['authorization'];
+    
+    // Извлекаем токен из заголовка (формат: "Bearer <token>")
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    // Если токен не предоставлен
+    if (!token) {
+      return res.status(401).json({ 
+        message: 'Токен не предоставлен' 
+      });
+    }
+    
+    // Верифицируем токен
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+      if (err) {
+        return res.status(403).json({ 
+          message: 'Невалидный токен' 
+        });
+      }
+      
+      // Сохраняем расшифрованные данные пользователя в объект запроса
+      req.user = user;
+      
+      // Передаем управление следующему middleware/обработчику
+      next();
+    });
+}
 
 // Чтение данных из products.json
 let products = [];
@@ -117,6 +154,36 @@ const swaggerOptions = {
 
 }
 
+app.post('/register', (req, res) => {
+    const { username, password } = req.body;
+    // Проверка: существует ли пользователь с таким именем
+    const existingUser = users.find(user => user.username === username);
+    if (existingUser) {
+        return res.status(400).json({ message: 'Пользователь с таким именем уже существует' });
+    } // Создание нового пользователя
+    const newUser = {
+        id: users.length + 1,
+        username,
+        password // !!! Пароль сохраняется как есть (без шифрования)
+    }; // Добавление пользователя в массив
+    users.push(newUser); // Ответ клиенту
+    res.status(201).json({ message: 'Регистрация прошла успешно' });
+});
+
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+    // Поиск пользователя
+    const user = users.find(user => user.username === username && user.password === password);
+    if (!user) {
+        return res.status(401).json({ message: 'Неверные имя пользователя или пароль' });
+    }
+    // Создание JWT токена
+    const token = jwt.sign({ id: user.id, username:
+    user.username }, SECRET_KEY, { expiresIn: '1h' });
+    // Ответ клиенту
+    res.json({ token });
+});
+
 // Получить список товаров
 app.get('/products', (req, res) => {
     res.json(loadProducts());
@@ -178,6 +245,13 @@ app.delete('/products/:id', (req, res) => {
     }
     saveProducts();
     res.status(204).send();
+});
+
+app.get('/protected', authenticateToken, (req, res) => {
+    res.json({
+        message: 'Доступ к защищённым данным получен!',
+        user: req.user // Показываем данные, извлечённые из токена
+    });
 });
 
 startServer(); // Запуск сервера

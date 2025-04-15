@@ -3,7 +3,6 @@ const { ApolloServer, gql } = require('apollo-server-express');
 const express = require('express');
 const fs = require('fs');
 require('dotenv').config({ path: 'test.env' }); // Подключаем dotenv
-const jwt = require('jsonwebtoken'); // Подключаем JWT
 const path = require('path');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
@@ -29,41 +28,35 @@ const typeDefs = gql`
 `;
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:5177', // Указываем конкретный источник (фронтенд)
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true // Важно для передачи куки
+   }));
 app.use(express.json());
 
-const SECRET_KEY = process.env.JWT_SECRET;
+const bodyParser = require('body-parser');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const bcrypt = require('bcrypt');
 
-// Middleware для проверки JWT токена
-function authenticateToken(req, res, next) {
-    // Получаем заголовок Authorization
-    const authHeader = req.headers['authorization'];
-    
-    // Извлекаем токен из заголовка (формат: "Bearer <token>")
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    // Если токен не предоставлен
-    if (!token) {
-      return res.status(401).json({ 
-        message: 'Токен не предоставлен' 
-      });
-    }
-    
-    // Верифицируем токен
-    jwt.verify(token, SECRET_KEY, (err, user) => {
-      if (err) {
-        return res.status(403).json({ 
-          message: 'Невалидный токен' 
-        });
-      }
-      
-      // Сохраняем расшифрованные данные пользователя в объект запроса
-      req.user = user;
-      
-      // Передаем управление следующему middleware/обработчику
-      next();
-    });
-}
+
+// 1. Обработка JSON-запросов
+app.use(bodyParser.json());
+// Куки
+app.use(cookieParser());
+// Сессии
+app.use(session({
+ secret: 'my_secret_session_key', // Можете заменить на переменную из .env
+ resave: false,
+ saveUninitialized: false,
+ cookie: {
+ httpOnly: true, // Без доступа из JS
+ sameSite: 'lax', // Базовая защита от CSRF
+ maxAge: 60 * 60 * 1000 // 1 час
+ }
+}));
 
 // Чтение данных из products.json
 let products = [];
@@ -89,6 +82,47 @@ function saveProducts() {
     }
 }
 
+// Проверка авторизации
+function requireAuth(req, res, next) {
+    if (!req.session.user) {
+    return res.status(401).json({ message: 'Необходима авторизация' });
+    }
+    next();
+   }
+
+// Получение профиля
+app.get('/profile', requireAuth, (req, res) => {
+    res.json({ user: req.session.user });
+   });
+   // Выход (удаление сессии)
+   app.post('/logout', (req, res) => {
+    req.session.destroy(err => {
+    if (err) {
+    return res.status(500).json({ message: 'Ошибка при выходе' });
+    }
+    res.clearCookie('connect.sid'); // Удаляем cookie сессии
+    res.json({ message: 'Вы успешно вышли из системы' });
+    });
+   });
+
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    const user = users.find(u => u.username === username);
+    if (!user) {
+    return res.status(401).json({ message: 'Пользователь не найден' });
+    }
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+    return res.status(401).json({ message: 'Неверный пароль' });
+    }
+    // Успешный вход: сохраняем данные в сессии
+    req.session.user = {
+    id: user.id,
+    username: user.username
+    };
+    res.json({ message: 'Вход выполнен успешно' });
+   });
+
 const resolvers = {
     Query: {
         products: () => loadProducts(),
@@ -99,6 +133,37 @@ const resolvers = {
 
 // Создаём GraphQL-сервер
 const server = new ApolloServer({ typeDefs, resolvers });
+
+const cachePath = path.join(__dirname, 'cache.json');
+app.get('/data', requireAuth, (req, res) => {
+ try {
+ // Проверка: существует ли кэш
+ if (fs.existsSync(cachePath)) {
+ const stats = fs.statSync(cachePath);
+ const now = new Date();
+ const modified = new Date(stats.mtime);
+ // Проверяем, не старше ли файл 1 минуты
+ const isFresh = (now - modified) < 60 * 1000;
+ if (isFresh) {
+ const cachedData = fs.readFileSync(cachePath, 'utf8');
+ return res.json({ source: 'cache', data: JSON.parse(cachedData) });
+ }
+ }
+ // Генерируем новые данные (можно заменить на реальные)
+ const freshData = {
+ timestamp: new Date().toISOString(),
+ message: 'Динамические данные с сервера',
+ user: req.session.user
+ };
+ // Сохраняем в файл
+ fs.writeFileSync(cachePath, JSON.stringify(freshData, null, 2));
+ // Отдаём клиенту
+ res.json({ source: 'generated', data: freshData });
+ } catch (error) {
+ res.status(500).json({ message: 'Ошибка получения данных', error:
+error.message });
+ }
+});
 
 async function startServer() {
     await server.start();
@@ -154,35 +219,26 @@ const swaggerOptions = {
 
 }
 
-app.post('/register', (req, res) => {
+app.post('/register', async (req, res) => {
     const { username, password } = req.body;
-    // Проверка: существует ли пользователь с таким именем
     const existingUser = users.find(user => user.username === username);
     if (existingUser) {
-        return res.status(400).json({ message: 'Пользователь с таким именем уже существует' });
-    } // Создание нового пользователя
-    const newUser = {
-        id: users.length + 1,
-        username,
-        password // !!! Пароль сохраняется как есть (без шифрования)
-    }; // Добавление пользователя в массив
-    users.push(newUser); // Ответ клиенту
-    res.status(201).json({ message: 'Регистрация прошла успешно' });
-});
-
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    // Поиск пользователя
-    const user = users.find(user => user.username === username && user.password === password);
-    if (!user) {
-        return res.status(401).json({ message: 'Неверные имя пользователя или пароль' });
+    return res.status(400).json({ message: 'Пользователь с таким именем уже существует' });
     }
-    // Создание JWT токена
-    const token = jwt.sign({ id: user.id, username:
-    user.username }, SECRET_KEY, { expiresIn: '1h' });
-    // Ответ клиенту
-    res.json({ token });
-});
+    try {
+    const hashedPassword = await bcrypt.hash(password, 10); 
+    const newUser = {
+    id: users.length + 1,
+    username,
+    password: hashedPassword
+    };
+    users.push(newUser);
+    res.status(201).json({ message: 'Регистрация прошла успешно' });
+    } catch (err) {
+    res.status(500).json({ message: 'Ошибка регистрации', error: err.message
+   });
+    }
+   });
 
 // Получить список товаров
 app.get('/products', (req, res) => {
@@ -245,13 +301,6 @@ app.delete('/products/:id', (req, res) => {
     }
     saveProducts();
     res.status(204).send();
-});
-
-app.get('/protected', authenticateToken, (req, res) => {
-    res.json({
-        message: 'Доступ к защищённым данным получен!',
-        user: req.user // Показываем данные, извлечённые из токена
-    });
 });
 
 startServer(); // Запуск сервера
